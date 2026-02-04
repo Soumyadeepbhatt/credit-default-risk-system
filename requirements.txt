@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+pandas
+numpy
+scikit-learn
+xgboost
+shap
+joblib
+python-multipart
+jinja2
+passlib[argon2]
+argon2-cffi
+python-jose

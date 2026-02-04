@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Risk Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f0f2f5;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar navbar-dark bg-dark px-4">
+        <a class="navbar-brand" href="/">🏦 Credit Risk System</a>
+        <div>
+            <a class="btn btn-outline-light me-2" href="/application">New Application</a>
+            <button class="btn btn-danger" onclick="logout()">Logout</button>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h3 class="mb-4">Analytics Dashboard</h3>
+
+        <!-- Stats Row -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="stat-card text-center">
+                    <h5 class="text-muted">Total Applications</h5>
+                    <h2 id="totalApps">-</h2>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card text-center">
+                    <h5 class="text-success">Approved</h5>
+                    <h2 id="approvedCount">-</h2>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card text-center">
+                    <h5 class="text-danger">High Risk</h5>
+                    <h2 id="highRiskCount">-</h2>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card text-center">
+                    <h5 class="text-primary">Approval Rate</h5>
+                    <h2 id="approvalRate">-%</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- Graphs Row -->
+        <!-- Graphs Row -->
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <div class="card p-3 h-100">
+                    <h6 class="text-center">Risk Distribution</h6>
+                    <div style="height: 300px; display: flex; justify-content: center;">
+                        <canvas id="riskDistChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-4">
+                <div class="card p-3 h-100">
+                    <h6 class="text-center">Decisions</h6>
+                    <div style="height: 300px; display: flex; justify-content: center;">
+                        <canvas id="decisionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-4">
+                <div class="card p-3 h-100">
+                    <h6 class="text-center">High Risk Features (Income vs Loan)</h6>
+                    <div style="height: 300px; display: flex; justify-content: center;">
+                        <canvas id="featuresChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-4">
+                <div class="card p-3 h-100">
+                    <h6 class="text-center">Avg Score by Education</h6>
+                    <div style="height: 300px; display: flex; justify-content: center;">
+                        <canvas id="eduChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Table -->
+        <div class="card p-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5>Recent Applications</h5>
+                <div>
+                    <button class="btn btn-sm btn-outline-primary" id="prevBtn"
+                        onclick="changePage(-1)">Previous</button>
+                    <span id="pageIndicator" class="mx-3">Page 1</span>
+                    <button class="btn btn-sm btn-outline-primary" id="nextBtn" onclick="changePage(1)">Next</button>
+                </div>
+            </div>
+            <table class="table table-hover mt-2">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Income</th>
+                        <th>Loan Amount</th>
+                        <th>Risk Score</th>
+                        <th>Decision</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody id="recentTable">
+                    <!-- JS will populate -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        // Auth Check
+        const token = localStorage.getItem('access_token');
+        if (!token) window.location.href = '/login';
+
+        function logout() {
+            localStorage.removeItem('access_token');
+            window.location.href = '/login';
+        }
+
+        let currentPage = 1;
+
+        async function loadApplications(page) {
+            try {
+                const response = await fetch(`/api/applications?page=${page}&limit=10`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.status === 401) logout();
+
+                const result = await response.json();
+
+                const tbody = document.getElementById('recentTable');
+                tbody.innerHTML = '';
+
+                result.data.forEach(app => {
+                    const row = `<tr>
+                        <td>#${app.id}</td>
+                        <td>$${app.income_annum.toLocaleString()}</td>
+                        <td>$${app.loan_amount.toLocaleString()}</td>
+                        <td>${app.risk_score}</td>
+                        <td><span class="badge ${app.decision === 'Approved' ? 'bg-success' : 'bg-danger'}">${app.decision}</span></td>
+                        <td>${new Date(app.created_at).toLocaleDateString()}</td>
+                    </tr>`;
+                    tbody.innerHTML += row;
+                });
+
+                // Update Controls
+                document.getElementById('pageIndicator').innerText = `Page ${result.page} of ${result.total_pages}`;
+                document.getElementById('prevBtn').disabled = result.page === 1;
+                document.getElementById('nextBtn').disabled = result.page === result.total_pages;
+
+                currentPage = result.page;
+
+            } catch (error) {
+                console.error("Error loading apps:", error);
+            }
+        }
+
+        function changePage(direction) {
+            loadApplications(currentPage + direction);
+        }
+
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/stats', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.status === 401) logout();
+
+                const data = await response.json();
+
+                document.getElementById('totalApps').innerText = data.total_applications;
+                document.getElementById('approvedCount').innerText = data.approved_count;
+                document.getElementById('highRiskCount').innerText = data.high_risk_count;
+                document.getElementById('approvalRate').innerText = data.approval_rate + '%';
+
+                // --- Render Charts ---
+
+                // 1. Risk Distribution (Pie)
+                new Chart(document.getElementById('riskDistChart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(data.risk_distribution),
+                        datasets: [{
+                            data: Object.values(data.risk_distribution),
+                            backgroundColor: ['#28a745', '#ffc107', '#dc3545']
+                        }]
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        layout: { padding: 20 }
+                    }
+                });
+
+                // 2. Decisions (Bar)
+                new Chart(document.getElementById('decisionChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: Object.keys(data.decisions),
+                        datasets: [{
+                            label: 'Count',
+                            data: Object.values(data.decisions),
+                            backgroundColor: ['#28a745', '#dc3545', '#17a2b8']
+                        }]
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        layout: { padding: 20 }
+                    }
+                });
+
+                // 3. High Risk Scatter (Income vs Loan)
+                new Chart(document.getElementById('featuresChart'), {
+                    type: 'scatter',
+                    data: {
+                        datasets: [{
+                            label: 'High Risk Apps',
+                            data: data.high_risk_scatter,
+                            backgroundColor: '#dc3545'
+                        }]
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        layout: { padding: 20 },
+                        scales: {
+                            x: { title: { display: true, text: 'Income' } },
+                            y: { title: { display: true, text: 'Loan Amount' } }
+                        }
+                    }
+                });
+
+                // 4. Score by Education (Polar Area)
+                new Chart(document.getElementById('eduChart'), {
+                    type: 'polarArea',
+                    data: {
+                        labels: Object.keys(data.score_by_edu),
+                        datasets: [{
+                            data: Object.values(data.score_by_edu),
+                            backgroundColor: ['#007bff', '#6610f2']
+                        }]
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        layout: { padding: 20 }
+                    }
+                });
+            } catch (error) {
+                console.error("Error loading stats:", error);
+            }
+        }
+
+        loadStats();
+        loadApplications(1);
+        // Auto refresh every 30 seconds
+        setInterval(() => {
+            loadStats();
+            loadApplications(currentPage);
+        }, 30000);
+    </script>
+</body>
+
+</html>
